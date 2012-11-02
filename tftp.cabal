@@ -1,0 +1,33 @@
+name:              tftp
+version:           0.1
+category:          network
+synopsis:          A library for building tftp servers
+description:       A library for building tftp servers
+build-type:        Simple
+cabal-version:     >= 1.8
+copyright:         (c) 2012 Sven Heyll
+author:            Sven Heyll
+maintainer:        sven.heyll@gmail.com
+homepage:          http://github.com/sheyll/tftp
+
+
+extra-source-files: src/*.hs Makefile
+
+--source-repository head
+--   type:     git
+--   location: git@git01.lbaum.eu:nat_surf_rs232_conf.git
+
+library
+   hs-source-dirs: src
+   exposed-modules: Network.TFTP.Server
+   build-depends:
+      base >= 4 && <= 5,
+      base-unicode-symbols,
+      containers,
+      bytestring,
+      mtl,
+      transformers,
+      network
+   ghc-options: -threaded
+   cpp-options: -DDEBUG
+   extensions: UnicodeSyntax, ExistentialQuantification, CPP, FlexibleInstances, DoAndIfThenElse, DeriveDataTypeable, FlexibleContexts, GeneralizedNewtypeDeriving, MultiParamTypeClasses, TemplateHaskell, TypeFamilies, RecordWildCards
