@@ -4,9 +4,10 @@ import qualified Network.Socket as Sock
 import System.IO(hSetBuffering, hSetBinaryMode, hWaitForInput, hClose, hGetBufSome, hPutBuf, hFlush, BufferMode(..), Handle, IOMode(..))
 import Text.Printf(printf)
 import Foreign.Ptr(Ptr(..))
-import Foreign.Marshal.Array(allocaArray, peekArray, pokeArray)
+import Foreign.Marshal(mallocArray, peekArray, pokeArray, free)
 import Data.Word(Word8)
 import Control.Monad(join)
+import Network.TFTP.Message(Message, encode, decode, ByteString, pack, unpack)
 
 bufferSize = 4096
 tftpPort = 69
@@ -20,46 +21,41 @@ bindUDPSocket hostname port = do
   Sock.bind sock (Sock.addrAddress serverAddr)
   return sock
 
-tftpFileServer :: FilePath -> Server
+tftpFileServer :: FilePath -> Server ()
 tftpFileServer dir reader writer = do
-  (from, req) <- reader 10
+  (from, req) <- reader
+  printf "got: %s\n" (show req)
+  printf "got: %s\n" (show (decode req :: Message))
   writer from req
-  printf "echoed %s\n" (show req)
   tftpFileServer dir reader writer
 
-withTFTPClient :: String -> Int -> Int -> Server -> IO ()
+withTFTPClient :: String -> Int -> Int -> Server () -> IO ()
 withTFTPClient host port timeout action =
     Sock.withSocketsDo $ do
       sock <- bindUDPSocket host (show port)
-      allocaArray bufferSize (\readBuf ->
-                                  allocaArray bufferSize
-                                                  (\writeBuf ->
-                                                       action
-                                                       (makeReader sock readBuf)
-                                                       (makeWriter sock writeBuf)))
+      readBuf <- mallocArray bufferSize
+      let reader = makeReader sock readBuf
+      writeBuf <- mallocArray bufferSize
+      let writer = makeWriter sock writeBuf
+      res <- action reader writer
+      free readBuf
+      free writeBuf
       Sock.close sock
 
-type Server = Reader -> Writer -> IO ()
+type Server a = Reader -> Writer -> IO a
 
-type Reader = Int -> IO (Sock.SockAddr, [Word8])
-type Writer = Sock.SockAddr -> [Word8] -> IO ()
+type Reader = IO (Sock.SockAddr, ByteString)
+type Writer = Sock.SockAddr -> ByteString -> IO ()
 
 makeReader :: Sock.Socket -> Ptr Word8 -> Reader
-makeReader sock buffer requestedCnt = readLoop []
-    where readLoop acc = do
-            let bytesMissing = requestedCnt - (length acc)
-                bytesToRead = min bufferSize bytesMissing
-            (bytesRead, from) <- Sock.recvBufFrom sock buffer bytesToRead
-            putStrLn $ "Read " ++ show bytesRead ++ "/" ++ show requestedCnt ++ " bytes"
+makeReader sock buffer = do
+            (bytesRead, from) <- Sock.recvBufFrom sock buffer bufferSize
+            putStrLn $ "Read " ++ show bytesRead ++ " bytes from " ++ (show from)
             res <- peekArray bytesRead buffer
-            let acc' = acc ++ res
-            if (length acc') < requestedCnt then
-                readLoop acc'
-            else
-                return (from, acc')
+            return (from, pack res)
 
 makeWriter :: Sock.Socket -> Ptr Word8 -> Writer
-makeWriter sock buffer destAddr toSend = writeLoop toSend
+makeWriter sock buffer destAddr toSend = writeLoop $ unpack toSend
     where
       writeLoop []     = return ()
       writeLoop toSend = do
