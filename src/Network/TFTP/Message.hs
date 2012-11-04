@@ -2,63 +2,33 @@
 module Network.TFTP.Message
     ( Message(..)
     , Mode(..)
+    , TFTPError(..)
     , module Data.Binary
     , module Data.ByteString.Lazy
+    , convertMode
     ) where
 
 import Data.Word
 import Data.Binary
-import Data.Binary.Get(getRemainingLazyByteString)
+import Data.Binary.Get(getLazyByteStringNul, getRemainingLazyByteString)
 import Control.Monad
--- import qualified Data.ByteString as B
+
 import Data.ByteString.Lazy(ByteString, pack, unpack)
 import Data.Char
 import Control.Applicative
 
+-- | TFTP message type.
 data Message = RRQ String Mode |
+               -- ^ Read request
                WRQ String Mode |
+               -- ^ Write request
                DATA BlockNumber ByteString |
+               -- ^ Data block with a raw bytestring
                ACK BlockNumber |
-               Error ErrorNumber ErrorMessage
+               -- ^ Acknowledge message
+               Error TFTPError
+               -- ^ Error message
           deriving(Read, Show, Ord, Eq)
-
-data Mode = NetASCII | Octet
-          deriving(Read, Show, Ord, Eq)
-
-type BlockNumber = Word16
-type ErrorNumber = Word16
-type ErrorMessage = String
-
-newtype NString = NString String
-
-nullTerminated :: String -> NString
-nullTerminated = NString
-
-instance Show NString where
-    show (NString s) = s
-
-instance Binary NString where
-    put (NString str) = forM_ str put >> put ('\NUL':: Char)
-    get = get_ []
-        where
-          get_ acc = do
-            c <- get :: Get Char
-            if c == '\NUL' then
-                return $ NString (reverse acc)
-             else
-                get_ (c:acc)
-
-data DataChunk = DC ByteString
-
-instance Binary DataChunk where
-    put (DC bs) = mapM_ put (unpack bs)
-
-    get = do
-      bs <- getRemainingLazyByteString
-      return $ DC bs
---      ch <- get_ []
---      return $ DC (pack ch)
---          where get_ acc = isEmpty >>= (\ stop -> if stop then (return (reverse acc)) else (get >>= get_ . (:acc)))
 
 instance Binary Message where
     put (RRQ fname mode) = do
@@ -80,10 +50,9 @@ instance Binary Message where
                           put (4 :: Word16)
                           put blockIndex
 
-    put (Error code msg) = do
+    put (Error err)      = do
                           put (5 :: Word16)
-                          put code
-                          put (nullTerminated msg)
+                          put err
 
     get = do
       opcode <- get :: Get Word16
@@ -98,19 +67,22 @@ instance Binary Message where
             mode <- get
             return $ WRQ fname mode
 
-        3 -> do
-            blockIndex <- get
-            chunk <- get
-            return $ DATA blockIndex chunk
+        3 -> DATA <$> get <*> (unDC <$> get)
 
-        4 -> do
-            blockIndex <- get
-            return $ ACK blockIndex
+        4 -> ACK <$> get
 
-        5 -> do
-            code <- get
-            NString msg <- get
-            return $ Error code msg
+        5 -> Error <$> get
+
+-- | The data type for block numbers in `Message's
+type BlockNumber = Word16
+
+-- | The data mode to encode the data with
+data Mode =
+    NetASCII |
+    -- ^ "netascii" mode
+    Octet
+    -- ^ "octet" mode
+          deriving(Read, Show, Ord, Eq)
 
 instance Binary Mode where
     put NetASCII = put $ NString "netascii"
@@ -118,6 +90,71 @@ instance Binary Mode where
 
     get = do
       NString str <- get
-      return $ case toLower <$> take (length "octet") str of
-                 "netas" -> NetASCII
+      return $ case toLower <$> str of
+                 "netascii" -> NetASCII
                  "octet" -> Octet
+
+-- | Convert a `ByteString' encoded in `fromMode' to a `ByteString' encoded in
+-- `toMode'.
+convertMode :: Mode -> Mode -> ByteString -> ByteString
+convertMode _ _ = id
+
+-- | The error codes as defined in the RFC 1350
+data TFTPError = ErrorMessage String |
+                 -- ^ Encapsulates a custom message for a non-standard error
+                 FileNotFound |
+                 AccessViolation |
+                 DiskFull |
+                 IllegalTFTPOperation |
+                 UnknownTransferID |
+                 FileAlreadyExists |
+                 NoSuchUser
+          deriving(Read, Show, Ord, Eq)
+
+getErrorCode :: TFTPError -> Word16
+getErrorCode (ErrorMessage _str) = 0
+getErrorCode FileNotFound = 1
+getErrorCode AccessViolation = 2
+getErrorCode DiskFull = 3
+getErrorCode IllegalTFTPOperation = 4
+getErrorCode UnknownTransferID = 5
+getErrorCode FileAlreadyExists = 6
+getErrorCode NoSuchUser = 7
+
+getErrorMsg :: TFTPError -> NString
+getErrorMsg (ErrorMessage str) = NString str
+getErrorMsg _ = NString ""
+
+makeTFTPError :: Word16 -> NString -> TFTPError
+makeTFTPError 0 (NString msg) = ErrorMessage msg
+makeTFTPError 1 _msg = FileNotFound
+makeTFTPError 2 _msg = AccessViolation
+makeTFTPError 3 _msg = DiskFull
+makeTFTPError 4 _msg = IllegalTFTPOperation
+makeTFTPError 5 _msg = UnknownTransferID
+makeTFTPError 6 _msg = FileAlreadyExists
+makeTFTPError 7 _msg = NoSuchUser
+
+instance Binary TFTPError where
+    put err = put (getErrorCode err) *> put (getErrorMsg err)
+    get = makeTFTPError <$> get <*> get
+
+newtype NString = NString String
+
+nullTerminated :: String -> NString
+nullTerminated = NString
+
+data DataChunk = DC { unDC :: ByteString }
+
+instance Binary DataChunk where
+    put (DC bs) = mapM_ put (unpack bs)
+    get = DC <$> getRemainingLazyByteString
+
+instance Show NString where
+    show (NString s) = s
+
+instance Binary NString where
+    put (NString str) = forM_ str put >> put ('\NUL':: Char)
+    get = pure bsToNString <*> getLazyByteStringNul
+        where
+          bsToNString = NString . ((toEnum . fromIntegral) <$>) . unpack

@@ -18,20 +18,20 @@ extra-source-files: src/*.hs Makefile
 --   location: git@github.com/sheyll/tftp.git
 
 library
-   exposed-modules: Network.TFTP.Server, Network.TFTP.Message
+   exposed-modules: Network.TFTP.Message, Network.TFTP.UDPIO, Network.TFTP.XFer
    hs-source-dirs: src
    build-depends:
       base >= 4 && <= 5,
-      base-unicode-symbols,
       containers,
       binary >= 0.6.2.0,
       bytestring,
       mtl,
       transformers,
+      hslogger,
       network
    ghc-options: -threaded
    cpp-options: -DDEBUG
-   extensions: UnicodeSyntax, CPP, DoAndIfThenElse, ScopedTypeVariables, FlexibleInstances
+   extensions: CPP, DoAndIfThenElse, ScopedTypeVariables, FlexibleInstances
 
 Test-Suite message-decoding
     type:           exitcode-stdio-1.0
@@ -39,8 +39,15 @@ Test-Suite message-decoding
     main-is:        MessageDecoding.hs
     build-depends:  base, tftp
 
-Test-Suite tftp-echo
+Test-Suite xfer
     type:           exitcode-stdio-1.0
     hs-source-dirs: tests
-    main-is:        TFTPEcho.hs
-    build-depends:  base, tftp
+    main-is:        XFer.hs
+    build-depends:  base, tftp, hslogger
+
+Test-Suite udp-io
+    type:           exitcode-stdio-1.0
+    hs-source-dirs: tests
+    main-is:        UDPIO.hs
+    build-depends:  base, tftp, hslogger
+    ghc-options: -threaded
