@@ -3,8 +3,8 @@ module Network.TFTP.Message
     ( Message(..)
     , Mode(..)
     , TFTPError(..)
-    , module Data.Binary
-    , module Data.ByteString.Lazy
+    , decode
+    , encode
     , convertMode
     ) where
 
@@ -13,7 +13,8 @@ import Data.Binary
 import Data.Binary.Get(getLazyByteStringNul, getRemainingLazyByteString)
 import Control.Monad
 
-import Data.ByteString.Lazy(ByteString, pack, unpack)
+import Network.TFTP.Types hiding (get, put)
+
 import Data.Char
 import Control.Applicative
 
@@ -147,7 +148,7 @@ nullTerminated = NString
 data DataChunk = DC { unDC :: ByteString }
 
 instance Binary DataChunk where
-    put (DC bs) = mapM_ put (unpack bs)
+    put (DC bs) = mapM_ put (bunpack bs)
     get = DC <$> getRemainingLazyByteString
 
 instance Show NString where
@@ -157,4 +158,4 @@ instance Binary NString where
     put (NString str) = forM_ str put >> put ('\NUL':: Char)
     get = pure bsToNString <*> getLazyByteStringNul
         where
-          bsToNString = NString . ((toEnum . fromIntegral) <$>) . unpack
+          bsToNString = NString . ((toEnum . fromIntegral) <$>) . bunpack

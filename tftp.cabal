@@ -18,7 +18,7 @@ extra-source-files: src/*.hs Makefile
 --   location: git@github.com/sheyll/tftp.git
 
 library
-   exposed-modules: Network.TFTP.Message, Network.TFTP.UDPIO, Network.TFTP.XFer
+   exposed-modules: Network.TFTP.Message, Network.TFTP.UDPIO, Network.TFTP.XFer, Network.TFTP.Types
    hs-source-dirs: src
    build-depends:
       base >= 4 && <= 5,
@@ -28,22 +28,46 @@ library
       mtl,
       transformers,
       hslogger,
-      network
+      network >= 2.3 && < 2.4
    ghc-options: -threaded
    cpp-options: -DDEBUG
-   extensions: CPP, DoAndIfThenElse, ScopedTypeVariables, FlexibleInstances
+   extensions: CPP
+              , DoAndIfThenElse
+              , ScopedTypeVariables
+              , FlexibleInstances
+              , FlexibleContexts
+              , MultiParamTypeClasses
+              , FunctionalDependencies
+              , GeneralizedNewtypeDeriving
 
 Test-Suite message-decoding
     type:           exitcode-stdio-1.0
     hs-source-dirs: tests
     main-is:        MessageDecoding.hs
     build-depends:  base, tftp
+    extensions: CPP
+                , DoAndIfThenElse
+                , ScopedTypeVariables
+                , FlexibleInstances
+                , FlexibleContexts
+                , MultiParamTypeClasses
+                , FunctionalDependencies
+                , GeneralizedNewtypeDeriving
 
 Test-Suite xfer
     type:           exitcode-stdio-1.0
     hs-source-dirs: tests
     main-is:        XFer.hs
-    build-depends:  base, tftp, hslogger
+    build-depends:  base, tftp, hslogger, mtl, transformers
+    extensions: CPP
+                , DoAndIfThenElse
+                , ScopedTypeVariables
+                , FlexibleInstances
+                , FlexibleContexts
+                , MultiParamTypeClasses
+                , FunctionalDependencies
+                , GeneralizedNewtypeDeriving
+    ghc-options: -fno-ignore-asserts
 
 Test-Suite udp-io
     type:           exitcode-stdio-1.0
@@ -51,3 +75,11 @@ Test-Suite udp-io
     main-is:        UDPIO.hs
     build-depends:  base, tftp, hslogger
     ghc-options: -threaded
+    extensions: CPP
+                , DoAndIfThenElse
+                , ScopedTypeVariables
+                , FlexibleInstances
+                , FlexibleContexts
+                , MultiParamTypeClasses
+                , FunctionalDependencies
+                , GeneralizedNewtypeDeriving

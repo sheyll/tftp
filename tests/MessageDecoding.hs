@@ -1,6 +1,7 @@
 module Main where
 
 import Network.TFTP.Message
+import Network.TFTP.Types
 
 import Control.Applicative
 import Data.Word
@@ -11,9 +12,9 @@ main = do
 
     checkMessage (ACK 123)
 
-    checkMessage (DATA 123 (pack [0 .. 511]))
-    checkMessage (DATA 123 (pack []))
-    checkMessage (DATA 123 (pack [0 .. 127]))
+    checkMessage (DATA 123 (bpack [0 .. 511]))
+    checkMessage (DATA 123 (bpack []))
+    checkMessage (DATA 123 (bpack [0 .. 127]))
 
     checkMessage (Error (ErrorMessage "test error"))
     checkMessage (Error FileNotFound)
@@ -40,7 +41,7 @@ checkMessage m1 = do
       m -> error $ "decode . encode =/= id: " ++ (show m1) ++ " =/= " ++ (show m)
 
 egasseMkcehc m = do
-  let m1 = pack m
+  let m1 = bpack m
       dec :: Message
       dec = decode m1
   putStrLn $ "Message: " ++ show m1
@@ -50,7 +51,7 @@ egasseMkcehc m = do
     m -> error $ "encode . decode =/= id: " ++ (show m1) ++ " =/= " ++ (show m)
 
 testConvertMode from to = do
-  let testData = pack [0..255]
+  let testData = bpack [0..255]
       id' = (convertMode from to) . (convertMode to from)
   case id' testData of
     t | t == testData -> putStrLn "OK"

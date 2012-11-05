@@ -1,22 +1,11 @@
 -- | Buffered UDP IO utility module.
-module Network.TFTP.UDPIO ( UDPIOAction
-                          , Reader
-                          , Writer
-                          , withUDPIO
+module Network.TFTP.UDPIO ( UDPIO(..)
                           , Address
-                          ) where
+                          , udpIO) where
 
 import qualified Network.Socket as Sock
 
-import Network.TFTP.Message( ByteString
-                           , pack
-                           , unpack)
-
-import System.Log.Logger( infoM
-                        , warningM
-                        , errorM)
-
-import Text.Printf(printf)
+import Network.TFTP.Types
 
 import Foreign.Ptr(Ptr(..))
 
@@ -25,44 +14,53 @@ import Foreign.Marshal( mallocArray
                       , pokeArray
                       , free)
 
-import Data.Word( Word8
-                , Word16)
-
 -- | Network address of a UDP sender/receiver
 type Address = Sock.SockAddr
 
--- | The type of an action passed to 'withUDPIO'
-type UDPIOAction a = Address -> Reader -> Writer -> IO a
+-- | Internal state
+data UDPIOSt = UDPIOSt { udpReader :: Reader
+                       , udpWriter :: Writer
+                       , udpMyAddress :: Address
+                       }
 
--- | The type of the action that reads a UDP packet coming together with its
--- origination
-type Reader = IO (Address, ByteString)
+-- | A monad for UDP IO
+newtype UDPIO a = UDPIO { runUDPIO :: StateT UDPIOSt IO a }
+    deriving (Functor, Monad, MonadIO, MonadState UDPIOSt, Applicative)
 
--- | The type of functions that write a bytestring to an address.
-type Writer = Address -> ByteString -> IO ()
+-- | Abstraction over UDP IO for sending/receiving bytestrings
+instance MessageIO UDPIO Address ByteString where
+    sendTo to msg = do
+      w <- udpWriter <$> get
+      liftIO (w to msg)
+
+    receiveFrom timeout = do
+      r <- udpReader <$> get
+      liftIO r
+
+    localAddress = udpMyAddress <$> get
 
 -- | Execute an action on a bound UDP port providing access to UDP IO via
 -- two functions that read and write data to/from UDP sockets.
 -- When the action returns, the socket is closed.
-withUDPIO :: Maybe String
+udpIO :: Maybe String
           -- ^ Hostname where the local UDP port will be bound
           -> Maybe String
           -- ^ Port where the local UDP port will be bound
-          -> UDPIOAction a
+          -> UDPIO a
           -- ^ The action to run with a reader and a writer
           -> IO a
           -- ^ Result of the action.
-withUDPIO host port action =
+udpIO host port action =
     do
       (addr, sock) <- bindUDPSocket host port
       readBuf <- mallocArray bufferSize
       let reader = makeReader sock readBuf
       writeBuf <- mallocArray bufferSize
       let writer = makeWriter sock writeBuf
-      res <- action addr reader writer
+      res <- evalStateT (runUDPIO action) (UDPIOSt reader writer addr)
       free readBuf
       free writeBuf
-      Sock.close sock
+      Sock.sClose sock
       return res
 
 bufferSize = 4096
@@ -74,7 +72,7 @@ bindUDPSocket hostname port = do
   (serverAddr:_) <- Sock.getAddrInfo (Just myHints) hostname port
   sock <- Sock.socket (Sock.addrFamily serverAddr) Sock.Datagram Sock.defaultProtocol
   let addr = Sock.addrAddress serverAddr
-  Sock.bind sock addr
+  Sock.bindSocket sock addr
   boundAddr <- Sock.getSocketName sock
   logInfo $ printf "Bound socket at address %s" (show boundAddr)
   return (boundAddr, sock)
@@ -84,10 +82,10 @@ makeReader sock buffer = do
             (bytesRead, from) <- Sock.recvBufFrom sock buffer bufferSize
             logInfo $ "Read " ++ show bytesRead ++ " bytes from " ++ (show from)
             res <- peekArray bytesRead buffer
-            return (from, pack res)
+            return (from, bpack res)
 
 makeWriter :: Sock.Socket -> Ptr Word8 -> Writer
-makeWriter sock buffer destAddr toSend = writeLoop $ unpack toSend
+makeWriter sock buffer destAddr toSend = writeLoop $ bunpack toSend
     where
       writeLoop []     = return ()
       writeLoop toSend = do
@@ -102,3 +100,10 @@ makeWriter sock buffer destAddr toSend = writeLoop $ unpack toSend
 logInfo  = infoM "TFTP.UDPIO"
 logWarn  = warningM "TFTP.UDPIO"
 logError = errorM "TFTP.UDPIO"
+
+-- | The type of the action that reads a UDP packet coming together with its
+-- origination
+type Reader = IO (Address, ByteString)
+
+-- | The type of functions that write a bytestring to an address.
+type Writer = Address -> ByteString -> IO ()
