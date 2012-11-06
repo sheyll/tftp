@@ -44,6 +44,7 @@ import Data.Word( Word8
 import Text.Printf(printf)
 
 type ByteString = B.ByteString
+
 bpack = B.pack
 bunpack = B.unpack
 bdrop = B.drop
@@ -54,14 +55,15 @@ blength = B.length
 -- import Control.Monad.IO.Class
 
 -- | Type class for monads that can send/receive messages
-class Monad m => MessageIO m address payload | m -> address payload where
+class  (Eq address, Show address, Monad m, MonadIO m) =>
+    MessageIO m address | m -> address where
 
     -- | send a message, always succeeds even if there was an error
-    sendTo :: address -> payload -> m ()
+    sendTo :: address -> ByteString -> m ()
 
     -- | receive a message, failing if no message was receive after a timeout
     -- (measured in seconds), where a timeout of 0 denotes infinity
-    receiveFrom :: Int -> m (address, payload)
+    receiveFrom :: Int -> m (address, ByteString)
 
     -- | return the address that 'receiveFrom' receives on
     localAddress :: m address

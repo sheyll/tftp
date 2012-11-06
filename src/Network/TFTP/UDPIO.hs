@@ -28,7 +28,7 @@ newtype UDPIO a = UDPIO { runUDPIO :: StateT UDPIOSt IO a }
     deriving (Functor, Monad, MonadIO, MonadState UDPIOSt, Applicative)
 
 -- | Abstraction over UDP IO for sending/receiving bytestrings
-instance MessageIO UDPIO Address ByteString where
+instance MessageIO UDPIO Address where
     sendTo to msg = do
       w <- udpWriter <$> get
       liftIO (w to msg)

@@ -1,19 +1,17 @@
 .PHONY=all doc test compile configure clean
 default_goal: test
 
-all: clean configure compile test doc
+all: clean build test
 
-doc: configure
-	cabal haddock
-
-test: compile
+test:
+	cabal configure --enable-tests --enable-library-coverage
+	cabal build
 	cabal test
 
-compile:
+build: clean
+	cabal configure
 	cabal build
-
-configure:
-	cabal configure --enable-tests
+	cabal haddock
 
 clean:
 	cabal clean

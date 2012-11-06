@@ -11,14 +11,17 @@ maintainer:        sven.heyll@gmail.com
 homepage:          http://github.com/sheyll/tftp
 
 
-extra-source-files: src/*.hs Makefile
+extra-source-files: src/*.hs Makefile README.md
 
 --source-repository head
 --   type:     git
 --   location: git@github.com/sheyll/tftp.git
 
 library
-   exposed-modules: Network.TFTP.Message, Network.TFTP.UDPIO, Network.TFTP.XFer, Network.TFTP.Types
+   exposed-modules: Network.TFTP.Message
+                  , Network.TFTP.UDPIO
+                  , Network.TFTP.Protocol
+                  , Network.TFTP.Types
    hs-source-dirs: src
    build-depends:
       base >= 4 && <= 5,
@@ -44,7 +47,7 @@ Test-Suite message-decoding
     type:           exitcode-stdio-1.0
     hs-source-dirs: tests
     main-is:        MessageDecoding.hs
-    build-depends:  base, tftp
+    build-depends:  base, tftp, QuickCheck
     extensions: CPP
                 , DoAndIfThenElse
                 , ScopedTypeVariables
@@ -54,10 +57,10 @@ Test-Suite message-decoding
                 , FunctionalDependencies
                 , GeneralizedNewtypeDeriving
 
-Test-Suite xfer
+Test-Suite protocol
     type:           exitcode-stdio-1.0
     hs-source-dirs: tests
-    main-is:        XFer.hs
+    main-is:        Protocol.hs
     build-depends:  base, tftp, hslogger, mtl, transformers
     extensions: CPP
                 , DoAndIfThenElse
@@ -67,7 +70,6 @@ Test-Suite xfer
                 , MultiParamTypeClasses
                 , FunctionalDependencies
                 , GeneralizedNewtypeDeriving
-    ghc-options: -fno-ignore-asserts
 
 Test-Suite udp-io
     type:           exitcode-stdio-1.0
