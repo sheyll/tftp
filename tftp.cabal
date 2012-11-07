@@ -33,15 +33,38 @@ library
       hslogger,
       network >= 2.3 && < 2.4
    ghc-options: -threaded
-   cpp-options: -DDEBUG
    extensions: CPP
               , DoAndIfThenElse
+              , UnicodeSyntax
               , ScopedTypeVariables
               , FlexibleInstances
               , FlexibleContexts
               , MultiParamTypeClasses
               , FunctionalDependencies
               , GeneralizedNewtypeDeriving
+
+executable tftp_upload
+    hs-source-dirs: src/
+    main-is:        TFTPUpload.hs
+    build-depends:  base
+                  , tftp
+                  , hslogger
+                  , directory
+                  , transformers
+                  , mtl
+                  , bytestring
+                  , network
+                  , binary
+    ghc-options:    -threaded
+    extensions: CPP
+                , DoAndIfThenElse
+                , UnicodeSyntax
+                , ScopedTypeVariables
+                , FlexibleInstances
+                , FlexibleContexts
+                , MultiParamTypeClasses
+                , FunctionalDependencies
+                , GeneralizedNewtypeDeriving
 
 Test-Suite message-decoding
     type:           exitcode-stdio-1.0
@@ -50,6 +73,7 @@ Test-Suite message-decoding
     build-depends:  base, tftp, QuickCheck
     extensions: CPP
                 , DoAndIfThenElse
+                , UnicodeSyntax
                 , ScopedTypeVariables
                 , FlexibleInstances
                 , FlexibleContexts
@@ -64,6 +88,7 @@ Test-Suite protocol
     build-depends:  base, tftp, hslogger, mtl, transformers
     extensions: CPP
                 , DoAndIfThenElse
+                , UnicodeSyntax
                 , ScopedTypeVariables
                 , FlexibleInstances
                 , FlexibleContexts
@@ -79,6 +104,7 @@ Test-Suite udp-io
     ghc-options: -threaded
     extensions: CPP
                 , DoAndIfThenElse
+                , UnicodeSyntax
                 , ScopedTypeVariables
                 , FlexibleInstances
                 , FlexibleContexts

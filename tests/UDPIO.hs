@@ -31,16 +31,16 @@ main = do
 server :: ByteString -> MVar Address -> MVar ByteString -> UDPIO ()
 server toClient serverV fromClientV = do
   me <- localAddress
-  liftIO $ putMVar serverV me
-  (clientAddr, fromClient) <- receiveFrom 0
-  liftIO $ putMVar fromClientV fromClient
+  liftIO (putMVar serverV me)
+  Just (clientAddr, fromClient) <- receiveFrom Nothing
+  liftIO (putMVar fromClientV fromClient)
   sendTo clientAddr toClient
 
 client :: ByteString -> MVar Address -> MVar ByteString -> UDPIO ()
 client toServer serverV fromServerV = do
-  serverAddr <- liftIO $ takeMVar serverV
+  serverAddr <- liftIO (takeMVar serverV)
   sendTo serverAddr toServer
-  (_, fromServer) <- receiveFrom 0
+  Just (_, fromServer) <- receiveFrom Nothing
   liftIO $ putMVar fromServerV fromServer
 
 toBS = bpack . (map (fromIntegral . fromEnum))
@@ -48,5 +48,4 @@ toBS = bpack . (map (fromIntegral . fromEnum))
 init_logging = do
   h <- streamHandler stdout DEBUG
   updateGlobalLogger rootLoggerName
-                         ( setLevel DEBUG
-                           . addHandler h)
+                         ( setLevel DEBUG . addHandler h)

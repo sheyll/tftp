@@ -6,6 +6,8 @@ module
                        , bdrop
                        , btake
                        , blength
+                       , B.readFile
+
                        , MessageIO(..)
 
                        , module Control.Monad
@@ -59,8 +61,8 @@ class  (Eq address, Show address, Monad m, MonadIO m) =>
     sendTo :: address -> ByteString -> m ()
 
     -- | receive a message, failing if no message was receive after a timeout
-    -- (measured in seconds), where a timeout of 0 denotes infinity
-    receiveFrom :: Int -> m (address, ByteString)
+    -- (measured in seconds)
+    receiveFrom :: Maybe Int -> m (Maybe (address, ByteString))
 
     -- | return the address that 'receiveFrom' receives on
     localAddress :: m address

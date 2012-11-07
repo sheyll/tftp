@@ -7,7 +7,7 @@
 steps:
   # Convert some ASCII sequences to their Unicode equivalents. This is disabled
   # by default.
-  - unicode_syntax: 
+  # - unicode_syntax: 
   #     # In order to make this work, we also need to insert the UnicodeSyntax
   #     # language pragma. If this flag is set to true, we insert it when it's
   #     # not already present. You may want to disable it if you configure
@@ -28,7 +28,7 @@ steps:
       # - none: Do not perform any alignment.
       #
       # Default: global.
-      align: global
+      align: group
 
   # Language pragmas
   - language_pragmas:
@@ -70,3 +70,16 @@ language_extensions:
   - TemplateHaskell
   - QuasiQuotes
   - UnicodeSyntax
+  - CPP
+  - DoAndIfThenElse
+  - ScopedTypeVariables
+  - FlexibleInstances
+  - FlexibleContexts
+  - MultiParamTypeClasses
+  - FunctionalDependencies
+  - GeneralizedNewtypeDeriving
+  - UnicodeSyntax
+  - ExistentialQuantification
+  - DeriveDataTypeable
+  - TypeFamilies
+  - RecordWildCards

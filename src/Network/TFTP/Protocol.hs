@@ -2,24 +2,54 @@
 -- transmission protocol.
 module Network.TFTP.Protocol where
 
-import Network.TFTP.Types
+import           Network.TFTP.Types
 
 import qualified Network.TFTP.UDPIO as UDP
 import qualified Network.TFTP.Message as M
 
-import System.Log.Logger
-import Data.Word
-import Text.Printf
+import           System.Log.Logger
+import           Data.Word
+import           Text.Printf
 
--- | XFer monad parameterised over a (MessageIO) monad
+import           Control.Monad.Trans.Maybe
+
+-- | XFer monad parameterised over a (MessageIO) monad.
 type XFerT m address a = StateT (XFerState address) m a
 
--- | execute a transfer action
-runXFerT :: (MessageIO m address) => XFerT m address result -> m result
-runXFerT action = evalStateT action (XFerState 0 Nothing)
+-- | Execute a transfer action.
+runTFTP :: (MessageIO m address) => XFerT m address result -> m result
+runTFTP action = evalStateT action (XFerState 0 Nothing)
+
+-- | A simple server action that will wait for a RRQ for its file.
+offerSingleFile :: (MessageIO m address) => Maybe Int -> String -> ByteString -> XFerT m address Bool
+offerSingleFile timeoutSeconds fname content = do
+  req <- receive timeoutSeconds
+  case req of
+    Just (M.RRQ rfname mode) | rfname == fname  -> do
+      when (mode == M.NetASCII)
+        (printWarn "Warning: a client requested NetASCII sending Octet data instead!")
+      printInfo $ printf "Accepting RRQ for %s sending %i bytes!" fname (blength content)
+      resetBlockIndex
+      incBlockIndex
+      writeData content
+
+    Just (M.RRQ rfname _) -> do
+      printErr $ printf "Client request for %s but I can send only %s" rfname fname
+      reply $ M.Error $ M.FileNotFound
+      return False
+
+    Just req -> do
+      printErr $ printf "Invalid client request %s" (show req)
+      reply $ M.Error $ M.IllegalTFTPOperation
+      return False
+
+    Nothing -> do
+      printErr $ printf "Timeout offering single file '%s'" fname
+      return False
 
 -- | A transfer action that sends a large chunk of data via TFTP DATA messages
 -- to a destination.
+writeData :: (MessageIO m address) => ByteString -> XFerT m address Bool
 writeData block = write maxRetries block
     where
       write retries blk = do
@@ -30,7 +60,9 @@ writeData block = write maxRetries block
         if blength blk >= 512 then do
                                 incBlockIndex
                                 write maxRetries (bdrop 512 blk)
-         else printInfo $ printf "Write finished"
+         else do
+          printInfo $ printf "Write finished"
+          return True
 
       retryThisWrite retries blk =
           if retries == 0 then writeFailed else
@@ -41,6 +73,7 @@ writeData block = write maxRetries block
         blockIdx <- getBlockIndex
         printErr $ printf "Write failed after %i retransmissions" maxRetries
         reply $ M.Error $ M.ErrorMessage "timeout"
+        return False
 
 
 -- | Receive the next message from the client, if the client anserws with the
@@ -48,32 +81,37 @@ writeData block = write maxRetries block
 -- invalid index call 'retry', if an error occured call 'error
 continueAfterACK success retry fail = do
   currentIdx <- getBlockIndex
-  packet <- receive
+  packet <- receive ackTimeOut
   case packet of
-    M.Error err ->
+    Just (M.Error err) ->
         do printErr $ printf "Error message received:  (%s)  "  (show err)
            fail
 
-    M.ACK idx | idx == currentIdx ->
+    Just (M.ACK idx) | idx == currentIdx ->
        do printInfo $ printf "Acknowledged"
           success
 
-    M.ACK idx | idx /= currentIdx ->
+    Just (M.ACK idx) | idx /= currentIdx ->
        do printWarn $ printf "ACK invalid"
           retry
 
-    otherMsg ->
+    Just otherMsg ->
        do printErr $ printf "Unexpected message"
           fail
 
-maxRetries :: Int
-maxRetries = 3
+    -- this indicates a timeout
+    Nothing -> retry
 
-timeout :: Int
-timeout = 3
+maxRetries :: Int
+maxRetries = 30
+
+ackTimeOut = Just 3
 
 data XFerState address = XFerState { xsBlockIndex  :: Word16
                                    , xsFrom        :: Maybe address}
+
+resetBlockIndex :: Monad m => XFerT m address ()
+resetBlockIndex = modify (\st -> st {xsBlockIndex = 0})
 
 getBlockIndex :: Monad m => XFerT m address Word16
 getBlockIndex = get >>= return . xsBlockIndex
@@ -114,13 +152,18 @@ send dest msg = do
   printInfo $ printf "Sent message to (%s) (%i bytes)" (show dest) (blength msg')
 
 -- | receive a message and remeber the sender for 'getLastPeer'
-receive :: (MessageIO m address) => XFerT m address M.Message
-receive = do
-  (from, msg) <- lift (receiveFrom 0)
-  setLastPeer (Just from)
-  let msg' = M.decode msg
-  printInfo $ printf "Received msg (%i bytes)" (blength msg)
-  return msg'
+receive :: (MessageIO m address) => Maybe Int -> XFerT m address (Maybe M.Message)
+receive timeout = do
+  res <- lift (receiveFrom timeout)
+  case res of
+    Just (from, msg) -> do
+      setLastPeer (Just from)
+      let msg' = M.decode msg
+      printInfo (printf "Received msg (%i bytes)" (blength msg))
+      return (Just msg')
+    Nothing -> do
+      printWarn "Receive timeout"
+      return Nothing
 
 printInfo :: (MessageIO m address) => String -> XFerT m address ()
 printInfo = logWith infoM

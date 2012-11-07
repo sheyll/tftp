@@ -4,12 +4,10 @@ module Network.TFTP.UDPIO ( UDPIO(..)
                           , udpIO) where
 
 import qualified Network.Socket as Sock
-
-import Network.TFTP.Types
-
-import Foreign.Ptr(Ptr(..))
-
-import Foreign.Marshal( mallocArray
+import           System.Timeout(timeout)
+import           Network.TFTP.Types
+import           Foreign.Ptr(Ptr(..))
+import           Foreign.Marshal( mallocArray
                       , peekArray
                       , pokeArray
                       , free)
@@ -35,7 +33,7 @@ instance MessageIO UDPIO Address where
 
     receiveFrom timeout = do
       r <- udpReader <$> get
-      liftIO r
+      liftIO (r timeout)
 
     localAddress = udpMyAddress <$> get
 
@@ -74,15 +72,22 @@ bindUDPSocket hostname port = do
   let addr = Sock.addrAddress serverAddr
   Sock.bindSocket sock addr
   boundAddr <- Sock.getSocketName sock
-  logInfo $ printf "Bound socket at address %s" (show boundAddr)
+  logInfo (printf "Bound socket at address %s" (show boundAddr))
   return (boundAddr, sock)
 
 makeReader ::  Sock.Socket -> Ptr Word8 -> Reader
-makeReader sock buffer = do
-            (bytesRead, from) <- Sock.recvBufFrom sock buffer bufferSize
-            logInfo $ "Read " ++ show bytesRead ++ " bytes from " ++ (show from)
-            res <- peekArray bytesRead buffer
-            return (from, bpack res)
+makeReader sock buffer maybeTimeoutSecs = do
+  let timeoutMicros = maybe (-1) (*1000000) maybeTimeoutSecs
+  mResult <- timeout timeoutMicros (Sock.recvBufFrom sock buffer bufferSize)
+  case mResult of
+    Just (bytesRead, from) -> do
+      logInfo ("Read " ++ show bytesRead ++ " bytes from " ++ show from)
+      res <- peekArray bytesRead buffer
+      return (Just (from, bpack res))
+
+    Nothing -> do
+      logWarn "Receive timeout!"
+      return Nothing
 
 makeWriter :: Sock.Socket -> Ptr Word8 -> Writer
 makeWriter sock buffer destAddr toSend = writeLoop $ bunpack toSend
@@ -103,7 +108,7 @@ logError = errorM "TFTP.UDPIO"
 
 -- | The type of the action that reads a UDP packet coming together with its
 -- origination
-type Reader = IO (Address, ByteString)
+type Reader = (Maybe Int) -> IO (Maybe (Address, ByteString))
 
 -- | The type of functions that write a bytestring to an address.
 type Writer = Address -> ByteString -> IO ()

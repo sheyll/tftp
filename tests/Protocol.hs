@@ -5,12 +5,15 @@ import           Network.TFTP.Protocol
 import           Network.TFTP.Types
 import           System.IO             (stdout)
 
+import           Data.Maybe
+
 import           Debug.Trace
 import           System.Exit
 
 main = do
   init_logging
   l "\n\nRunning: testReceive"                  >> runXFerMock testReceive
+  l "\n\nRunning: testReceiveTimout"            >> runXFerMock testReceiveTimout
   l "\n\nRunning: testReplyData"                >> runXFerMock testReplyData
   l "\n\nRunning: testSendData"                 >> runXFerMock testSendData
   l "\n\nRunning: testIncIndex"                 >> runXFerMock testIncIndex
@@ -18,15 +21,64 @@ main = do
   l "\n\nRunning: testContinueAfterACK_RETRY"   >> runXFerMock testContinueAfterACK_RETRY
   l "\n\nRunning: testContinueAfterACK_ERROR1"  >> runXFerMock testContinueAfterACK_ERROR1
   l "\n\nRunning: testContinueAfterACK_ERROR2"  >> runXFerMock testContinueAfterACK_ERROR2
-  l "\n\nRunning: testContinueAfterACK_ERROR2"  >> runXFerMock testContinueAfterACK_ERROR2
+  l "\n\nRunning: testContinueAfterACKTimeout"  >> runXFerMock testContinueAfterACKTimeout
   l "\n\nRunning: testWriteData_oneblock"       >> runXFerMock testWriteData_oneblock
   l "\n\nRunning: testWriteData_invalid_ack"    >> runXFerMock testWriteData_invalid_ack
   l "\n\nRunning: testWriteData_manyblocks 0"   >> runXFerMock (testWriteData_manyblocks 0)
   l "\n\nRunning: testWriteData_manyblocks 1"   >> runXFerMock (testWriteData_manyblocks 9)
+  l "\n\nRunning: testWriteDataTimeout"         >> runXFerMock testWriteDataTimeout
 
-  l "\n\nRunning: testWriteData_manyblocks 1"   >> runXFerMock (testWriteData_manyblocks 9)
+  l "\n\nRunning: testOfferSingleFileOneBlock NetASCII" >> runXFerMock (testOfferSingleFileOneBlock M.NetASCII)
+  l "\n\nRunning: testOfferSingleFileOneBlock Octet"    >> runXFerMock (testOfferSingleFileOneBlock M.Octet)
+  l "\n\nRunning: testOfferSingleFileNotFound"          >> runXFerMock testOfferSingleFileNotFound
+  l "\n\nRunning: testOfferSingleFileBadRequest"        >> runXFerMock testOfferSingleFileBadRequest
+  l "\n\nRunning: testOfferSingleFileTimeOut"           >> runXFerMock testOfferSingleFileTimeOut
 
 -- tests
+
+testOfferSingleFileTimeOut = do
+  let timeout = 123
+  mock $ ExpectReceiveTO timeout
+  res <- offerSingleFile (Just timeout) "xxx" undefined
+  assertEqual "testOfferSingleFileTimeOut" False res
+
+testOfferSingleFileBadRequest = do
+  let peer = 123
+      fname = "abc"
+  mock $ ExpectReceive peer (M.WRQ fname M.NetASCII)
+  mock $ ExpectSend peer $ M.Error M.IllegalTFTPOperation
+  res <- offerSingleFile Nothing fname undefined
+  assertEqual "testOfferSingleFileBadRequest" False res
+
+testOfferSingleFileNotFound = do
+  let peer = 123
+      fname = "firmware.bin"
+  mock $ ExpectReceive peer (M.RRQ "abc" M.NetASCII)
+  mock $ ExpectSend peer $ M.Error M.FileNotFound
+  res <- offerSingleFile Nothing fname undefined
+  assertEqual "testOfferSingleFileOneBlock" False res
+
+testOfferSingleFileOneBlock mode = do
+  let testChunk = bpack (replicate 255 (65 + 11))
+      peer = 123
+      fname = "firmware.bin"
+  mock $ ExpectReceive peer (M.RRQ "firmware.bin" mode)
+  mock $ ExpectSend peer $ M.DATA 1 testChunk
+  mock $ ExpectReceive peer (M.ACK 1)
+  res <- offerSingleFile Nothing fname testChunk
+  assertEqual "testOfferSingleFileOneBlock" True res
+
+testWriteDataTimeout = do
+  let testChunk = bpack (replicate 255 (65 + 11))
+      peer = 123
+  sequence $ replicate (maxRetries + 1) $ do
+    mock $ ExpectSend peer $ M.DATA 0 testChunk
+    mock $ ExpectReceiveTO (fromJust ackTimeOut)
+  mock $ ExpectSend peer (M.Error (M.ErrorMessage "timeout"))
+  setLastPeer $ Just peer
+  res <- writeData testChunk
+  verify
+  assertEqual "testWriteDataTimeout" False res
 
 testWriteData_manyblocks lastChunkSize = do
   let blob      = bpack $ concat ((replicate (blocks - 1) chunk) ++ [lastChunk])
@@ -37,7 +89,7 @@ testWriteData_manyblocks lastChunkSize = do
       lastIdx   = fromIntegral $ blocks - 1
   -- generate
   sequence $
-    [do mock $ ExpectSend    peer (M.DATA index (bpack chunk))
+    [do mock $ ExpectSend        peer (M.DATA index (bpack chunk))
         mock $ ExpectReceive peer (M.ACK index)
     | index <- fromIntegral <$> [0 .. (blocks - 2)]]
 
@@ -46,32 +98,31 @@ testWriteData_manyblocks lastChunkSize = do
   mock $ ExpectReceive peer (M.ACK lastIdx)
 
   setLastPeer $ Just peer
-  writeData blob
+  res <- writeData blob
   verify
+  assertEqual "testWriteData_manyblocks" True res
 
 testWriteData_invalid_ack = do
   let blob = bpack (replicate 25 (65 + 11))
       peer = 123
-
   sequence $ replicate (maxRetries + 1) $ do
     mock $ ExpectSend peer (M.DATA 0 blob)
     mock $ ExpectReceive peer (M.ACK 666)
   mock $ ExpectSend peer (M.Error (M.ErrorMessage "timeout"))
-
   setLastPeer $ Just peer
-  writeData blob
+  res <- writeData blob
   verify
+  assertEqual "testWriteData_invalid_ack" False res
 
 testWriteData_oneblock = do
   let testChunk = bpack (replicate 255 (65 + 11))
       peer = 123
-
   mock $ ExpectSend peer $ M.DATA 0 testChunk
   mock $ ExpectReceive peer (M.ACK 0)
-
   setLastPeer $ Just peer
-  writeData testChunk
+  res <- writeData testChunk
   verify
+  assertEqual "testWriteData_oneblock" True res
 
 testContinueAfterACK_SUCCESS = do
   idx <- incBlockIndex
@@ -105,14 +156,30 @@ testContinueAfterACK_ERROR2 = do
                    (return ())
   verify
 
+testContinueAfterACKTimeout = do
+  idx <- incBlockIndex
+  mock $ ExpectReceiveTO (fromJust ackTimeOut)
+  continueAfterACK (testFail "success called")
+                   (return ())
+                   (testFail "fail called")
+  verify
+
 testReceive = do
   let m = M.RRQ "test.txt" M.NetASCII
       peer = 777
   mock $ ExpectReceive peer m
-  m' <- receive
+  (Just m') <- receive Nothing
   peer' <- getLastPeer
   assertEqual "testReceive wrong peer" (Just peer) peer'
   assertEqual "testReceive invalid mesage" m m'
+  verify
+
+testReceiveTimout = do
+  let peer = 777
+      timeout = 123
+  mock $ ExpectReceiveTO timeout
+  res <- receive (Just timeout)
+  assertEqual "testReceiveTimout" Nothing res
   verify
 
 testReplyData = do
@@ -147,21 +214,21 @@ type XFerMock a = XFerT MessageIOMock Int a
 
 -- | Run some testing code in the XFerT monad that is lifted ontop of a
 --   mocked MessageIO monad 'MessageIOMock'
-runXFerMock :: XFerMock a -> IO a
-runXFerMock action = evalStateT (runXFerT action) []
+runXFerMock ∷ XFerMock a → IO a
+runXFerMock action = evalStateT (runTFTP action) []
 
 -- | Specify an expectation.
-mock :: Expectation -> XFerMock ()
+mock ∷ Expectation → XFerMock ()
 mock e = lift (modify (++[e]))
 
 -- | Verify that no more expectations exist.
-verify :: XFerMock ()
+verify ∷ XFerMock ()
 verify = lift $ do
   st <- get
   when (st /= []) (fail $ "missed expectations: " ++ show st)
 
 -- | The expecation type that defines if either a send or a receive is expected.
-data Expectation = ExpectSend Int M.Message | ExpectReceive Int M.Message
+data Expectation = ExpectSend Int M.Message | ExpectReceive Int M.Message | ExpectReceiveTO Int
                    deriving (Eq, Show)
 
 -- | A simple mock monad ontop of IO that is instance of MessageIO
@@ -180,14 +247,18 @@ instance MessageIO MessageIOMock Int where
                        put st'
                        assertEqual "sendTo" ex (ExpectSend addr msg)
 
-    receiveFrom _ = do
+    receiveFrom timeout = do
       st <- get
-      case st of
-        [] -> testFail "no more expectations: receiveFrom"
+      case (timeout, st) of
+        (_, []) -> testFail "no more expectations: receiveFrom"
 
-        (ExpectReceive addr msg : st') -> do
+        (Just t, ExpectReceiveTO timeout' : st') | t == timeout' -> do
                       put st'
-                      return $ (addr, M.encode msg)
+                      return $ Nothing
+
+        (_, ExpectReceive addr msg : st') -> do
+                      put st'
+                      return $ Just (addr, M.encode msg)
 
         _ -> testFail "unexpected 'receiveFrom' "
 
