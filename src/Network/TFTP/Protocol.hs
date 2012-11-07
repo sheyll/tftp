@@ -66,7 +66,6 @@ continueAfterACK success retry fail = do
        do printErr $ printf "Unexpected message"
           fail
 
-
 maxRetries :: Int
 maxRetries = 3
 
@@ -81,11 +80,11 @@ getBlockIndex = get >>= return . xsBlockIndex
 
 incBlockIndex :: Monad m => XFerT m address Word16
 incBlockIndex = do
-  st <- get
-  let i = xsBlockIndex st
-      i' = i + 1
-  modify $ \st -> st { xsBlockIndex = i' }
-  return i'
+   st <- get
+   let i = xsBlockIndex st
+       i' = i + 1
+   modify $ \st -> st { xsBlockIndex = i' }
+   return i'
 
 getLastPeer :: Monad m => XFerT m address (Maybe address)
 getLastPeer = get >>= return . xsFrom
@@ -96,7 +95,6 @@ setLastPeer addr = do
   when (lp /= addr) $ do
                      printInfo $ printf "Replacing last peer with (%s)" (show addr)
                      modify $ \st -> st { xsFrom = addr }
-
 
 replyData :: (MessageIO m address) => ByteString -> XFerT m address ()
 replyData chunk = do

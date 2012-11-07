@@ -51,9 +51,6 @@ bdrop = B.drop
 btake = B.take
 blength = B.length
 
--- import Control.Monad.Error
--- import Control.Monad.IO.Class
-
 -- | Type class for monads that can send/receive messages
 class  (Eq address, Show address, Monad m, MonadIO m) =>
     MessageIO m address | m -> address where
@@ -67,8 +64,3 @@ class  (Eq address, Show address, Monad m, MonadIO m) =>
 
     -- | return the address that 'receiveFrom' receives on
     localAddress :: m address
-
---
--- testEcho = do
---   msg <- receiveMsg 0
---   replyTo msg (payloadOf msg)

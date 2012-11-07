@@ -1,12 +1,12 @@
 module Main where
 
-import Network.TFTP.Protocol
-import Network.TFTP.Types
-import qualified Network.TFTP.Message as M
-import System.IO(stdout)
+import qualified Network.TFTP.Message  as M
+import           Network.TFTP.Protocol
+import           Network.TFTP.Types
+import           System.IO             (stdout)
 
-import Debug.Trace
-import System.Exit
+import           Debug.Trace
+import           System.Exit
 
 main = do
   init_logging
@@ -24,6 +24,8 @@ main = do
   l "\n\nRunning: testWriteData_manyblocks 0"   >> runXFerMock (testWriteData_manyblocks 0)
   l "\n\nRunning: testWriteData_manyblocks 1"   >> runXFerMock (testWriteData_manyblocks 9)
 
+  l "\n\nRunning: testWriteData_manyblocks 1"   >> runXFerMock (testWriteData_manyblocks 9)
+
 -- tests
 
 testWriteData_manyblocks lastChunkSize = do
@@ -33,11 +35,11 @@ testWriteData_manyblocks lastChunkSize = do
       blocks    = 100
       peer      = 123
       lastIdx   = fromIntegral $ blocks - 1
-
+  -- generate
   sequence $
-   [do mock $ ExpectSend    peer (M.DATA index (bpack chunk))
-       mock $ ExpectReceive peer (M.ACK index)
-   | index <- fromIntegral <$> [0 .. (blocks - 2)]]
+    [do mock $ ExpectSend    peer (M.DATA index (bpack chunk))
+        mock $ ExpectReceive peer (M.ACK index)
+    | index <- fromIntegral <$> [0 .. (blocks - 2)]]
 
   -- The transfer is closed by sending an empty data message
   mock $ ExpectSend    peer (M.DATA lastIdx (bpack lastChunk))
@@ -60,7 +62,6 @@ testWriteData_invalid_ack = do
   writeData blob
   verify
 
-
 testWriteData_oneblock = do
   let testChunk = bpack (replicate 255 (65 + 11))
       peer = 123
@@ -71,7 +72,6 @@ testWriteData_oneblock = do
   setLastPeer $ Just peer
   writeData testChunk
   verify
-
 
 testContinueAfterACK_SUCCESS = do
   idx <- incBlockIndex
