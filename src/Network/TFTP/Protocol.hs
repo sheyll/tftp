@@ -26,12 +26,17 @@ offerSingleFile timeoutSeconds fname content = do
   req <- receive timeoutSeconds
   case req of
     Just (M.RRQ rfname mode) | rfname == fname  -> do
-      when (mode == M.NetASCII)
-        (printWarn "Warning: a client requested NetASCII sending Octet data instead!")
-      printInfo $ printf "Accepting RRQ for %s sending %i bytes!" fname (blength content)
-      resetBlockIndex
-      incBlockIndex
-      writeData content
+      case mode of
+        M.NetASCII -> do
+          printErr "A client requested NetASCII, this is not implemented yet."
+          reply $ M.Error $ M.IllegalTFTPOperation
+          return False
+
+        M.Octet -> do
+          printInfo $ printf "Accepting RRQ for %s sending %i bytes!" fname (blength content)
+          resetBlockIndex
+          incBlockIndex
+          writeData content
 
     Just (M.RRQ rfname _) -> do
       printErr $ printf "Client request for %s but I can send only %s" rfname fname
@@ -121,7 +126,7 @@ incBlockIndex = do
    st <- get
    let i = xsBlockIndex st
        i' = i + 1
-   modify $ \st -> st { xsBlockIndex = i' }
+   modify (\ st -> st { xsBlockIndex = i' })
    return i'
 
 getLastPeer :: Monad m => XFerT m address (Maybe address)
@@ -166,7 +171,7 @@ receive timeout = do
       return Nothing
 
 printInfo :: (MessageIO m address) => String -> XFerT m address ()
-printInfo = logWith infoM
+printInfo = logWith debugM
 
 printWarn :: (MessageIO m address) => String -> XFerT m address ()
 printWarn = logWith warningM

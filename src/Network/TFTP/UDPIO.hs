@@ -3,14 +3,12 @@ module Network.TFTP.UDPIO ( UDPIO(..)
                           , Address
                           , udpIO) where
 
-import qualified Network.Socket as Sock
-import           System.Timeout(timeout)
-import           Network.TFTP.Types
+import           Foreign.Marshal(mallocArray, peekArray, pokeArray, free)
 import           Foreign.Ptr(Ptr(..))
-import           Foreign.Marshal( mallocArray
-                      , peekArray
-                      , pokeArray
-                      , free)
+import qualified Network.Socket as Sock
+import           Network.TFTP.Types
+import           System.IO.Error
+import           System.Timeout(timeout)
 
 -- | Network address of a UDP sender/receiver
 type Address = Sock.SockAddr
@@ -90,9 +88,11 @@ makeReader sock buffer maybeTimeoutSecs = do
       return Nothing
 
 makeWriter :: Sock.Socket -> Ptr Word8 -> Writer
-makeWriter sock buffer destAddr toSend = writeLoop $ bunpack toSend
+makeWriter sock buffer destAddr toSend =
+  -- run the write loop and catch exceptions
+  catchIOError (writeLoop $ bunpack toSend) handleIOError
     where
-      writeLoop []     = return ()
+      writeLoop []     = return True
       writeLoop toSend = do
         let bytesToSend = min bufferSize (length toSend)
             chunkToSend = take bytesToSend toSend
@@ -102,7 +102,14 @@ makeWriter sock buffer destAddr toSend = writeLoop $ bunpack toSend
         logInfo $ "Sent " ++ show bytesSent ++ " " ++ show (length rest) ++ " left"
         writeLoop rest
 
-logInfo  = infoM "TFTP.UDPIO"
+      handleIOError e = do
+        logWarn $ printf "Caught IO Exception: \'%s\' with message %s at %s."
+          (show $ ioeGetErrorType e)
+          (show $ ioeGetErrorString e)
+          (show $ ioeGetLocation e)
+        return False
+
+logInfo  = debugM "TFTP.UDPIO"
 logWarn  = warningM "TFTP.UDPIO"
 logError = errorM "TFTP.UDPIO"
 
@@ -111,4 +118,4 @@ logError = errorM "TFTP.UDPIO"
 type Reader = (Maybe Int) -> IO (Maybe (Address, ByteString))
 
 -- | The type of functions that write a bytestring to an address.
-type Writer = Address -> ByteString -> IO ()
+type Writer = Address -> ByteString -> IO Bool

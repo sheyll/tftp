@@ -11,10 +11,13 @@ import System.Environment(getArgs)
 import System.Exit
 
 main = do
-  init_logging
   args <- getArgs
   case args of
-    [fname, port, timeoutArg] -> do
+    (fname: port: timeoutArg: verbose) -> do
+      case verbose of
+        [] -> init_logging WARNING
+        ["-v"] -> init_logging INFO
+        ["-vv"] -> init_logging DEBUG
       let host = Nothing
           timeout = case read timeoutArg of
             0 -> Nothing
@@ -26,7 +29,7 @@ main = do
       serverFile fname host (Just port) timeout
 
     _ -> do
-      errorM "TFTPUpload" "Missing parameter. Expected: <filename> <port> <timeout>"
+      errorM "TFTPUpload" "Missing parameter. Expected: <filename> <port> <timeout> [-v|-vv]"
       exitWith (ExitFailure 1)
 
 
@@ -35,5 +38,5 @@ serverFile fname host port timeout = do
   infoM "TFTPUpload" (printf "Serving file '%s' under the name 'xxx'" fname)
   udpIO host port (runTFTP (offerSingleFile timeout "xxx" cont))
 
-init_logging = do
-  updateGlobalLogger rootLoggerName $ setLevel DEBUG
+init_logging level = do
+  updateGlobalLogger rootLoggerName $ setLevel level

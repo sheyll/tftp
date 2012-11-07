@@ -57,12 +57,12 @@ blength = B.length
 class  (Eq address, Show address, Monad m, MonadIO m) =>
     MessageIO m address | m -> address where
 
-    -- | send a message, always succeeds even if there was an error
-    sendTo :: address -> ByteString -> m ()
+    -- | Send a message or return 'False' when there was an error
+    sendTo :: address -> ByteString -> m Bool
 
-    -- | receive a message, failing if no message was receive after a timeout
+    -- | Receive a message, failing if no message was receive after a timeout
     -- (measured in seconds)
     receiveFrom :: Maybe Int -> m (Maybe (address, ByteString))
 
-    -- | return the address that 'receiveFrom' receives on
+    -- | Return the address that 'receiveFrom' receives on
     localAddress :: m address

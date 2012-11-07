@@ -7,9 +7,9 @@ test:
 	cabal build
 	cabal test
 
-all: clean
+dist: clean
 	cabal configure
-	cabal build
+	cabal build --ghc-options=-O2
 	cabal haddock
 
 clean:

@@ -28,11 +28,11 @@ main = do
   l "\n\nRunning: testWriteData_manyblocks 1"   >> runXFerMock (testWriteData_manyblocks 9)
   l "\n\nRunning: testWriteDataTimeout"         >> runXFerMock testWriteDataTimeout
 
-  l "\n\nRunning: testOfferSingleFileOneBlock NetASCII" >> runXFerMock (testOfferSingleFileOneBlock M.NetASCII)
-  l "\n\nRunning: testOfferSingleFileOneBlock Octet"    >> runXFerMock (testOfferSingleFileOneBlock M.Octet)
-  l "\n\nRunning: testOfferSingleFileNotFound"          >> runXFerMock testOfferSingleFileNotFound
-  l "\n\nRunning: testOfferSingleFileBadRequest"        >> runXFerMock testOfferSingleFileBadRequest
-  l "\n\nRunning: testOfferSingleFileTimeOut"           >> runXFerMock testOfferSingleFileTimeOut
+  l "\n\nRunning: testOfferSingleFileNetASCII"  >> runXFerMock testOfferSingleFileNetASCII
+  l "\n\nRunning: testOfferSingleFileOneBlock"  >> runXFerMock testOfferSingleFileOneBlock
+  l "\n\nRunning: testOfferSingleFileNotFound"  >> runXFerMock testOfferSingleFileNotFound
+  l "\n\nRunning: testOfferSingleFileBadReq"    >> runXFerMock testOfferSingleFileBadReq
+  l "\n\nRunning: testOfferSingleFileTimeOut"   >> runXFerMock testOfferSingleFileTimeOut
 
 -- tests
 
@@ -42,10 +42,10 @@ testOfferSingleFileTimeOut = do
   res <- offerSingleFile (Just timeout) "xxx" undefined
   assertEqual "testOfferSingleFileTimeOut" False res
 
-testOfferSingleFileBadRequest = do
+testOfferSingleFileBadReq = do
   let peer = 123
       fname = "abc"
-  mock $ ExpectReceive peer (M.WRQ fname M.NetASCII)
+  mock $ ExpectReceive peer (M.WRQ fname M.Octet)
   mock $ ExpectSend peer $ M.Error M.IllegalTFTPOperation
   res <- offerSingleFile Nothing fname undefined
   assertEqual "testOfferSingleFileBadRequest" False res
@@ -53,16 +53,24 @@ testOfferSingleFileBadRequest = do
 testOfferSingleFileNotFound = do
   let peer = 123
       fname = "firmware.bin"
-  mock $ ExpectReceive peer (M.RRQ "abc" M.NetASCII)
+  mock $ ExpectReceive peer (M.RRQ "abc" M.Octet)
   mock $ ExpectSend peer $ M.Error M.FileNotFound
   res <- offerSingleFile Nothing fname undefined
   assertEqual "testOfferSingleFileOneBlock" False res
 
-testOfferSingleFileOneBlock mode = do
+testOfferSingleFileNetASCII = do
+  let peer = 123
+      fname = "firmware.bin"
+  mock $ ExpectReceive peer (M.RRQ fname M.NetASCII)
+  mock $ ExpectSend peer $ M.Error M.IllegalTFTPOperation
+  res <- offerSingleFile Nothing fname undefined
+  assertEqual "testOfferSingleFileOneBlock" False res
+
+testOfferSingleFileOneBlock = do
   let testChunk = bpack (replicate 255 (65 + 11))
       peer = 123
       fname = "firmware.bin"
-  mock $ ExpectReceive peer (M.RRQ "firmware.bin" mode)
+  mock $ ExpectReceive peer (M.RRQ "firmware.bin" M.Octet)
   mock $ ExpectSend peer $ M.DATA 1 testChunk
   mock $ ExpectReceive peer (M.ACK 1)
   res <- offerSingleFile Nothing fname testChunk
@@ -246,6 +254,7 @@ instance MessageIO MessageIOMock Int where
         (ex : st') -> do
                        put st'
                        assertEqual "sendTo" ex (ExpectSend addr msg)
+                       return True
 
     receiveFrom timeout = do
       st <- get
