@@ -1,4 +1,4 @@
-.PHONY=test executable clean
+.PHONY=test build clean
 default_goal: test
 
 
@@ -7,10 +7,10 @@ test:
 	cabal build
 	cabal test
 
-dist: clean
+build: clean
 	cabal configure
 	cabal build --ghc-options=-O2
-	cabal haddock
+	cabal haddock	
 
 clean:
 	cabal clean

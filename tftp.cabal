@@ -1,5 +1,7 @@
 name:              tftp
 version:           0.1
+license:           BSD3
+license-file:      LICENSE
 category:          network
 synopsis:          A library for building tftp servers
 description:       A library for building tftp servers
@@ -11,11 +13,11 @@ maintainer:        sven.heyll@gmail.com
 homepage:          http://github.com/sheyll/tftp
 
 
-extra-source-files: src/*.hs Makefile README.md tftp.cabal
+extra-source-files: src/*.hs Makefile README.md tftp.cabal LICENSE
 
---source-repository head
---   type:     git
---   location: git@github.com/sheyll/tftp.git
+source-repository head
+   type:     git
+   location: git://github.com/sheyll/tftp.git
 
 library
    exposed-modules: Network.TFTP.Message
@@ -34,7 +36,6 @@ library
       hslogger,
       directory,
       network >= 2.3 && < 2.4
-   ghc-options: -threaded
    extensions: CPP
               , DoAndIfThenElse
               , UnicodeSyntax
