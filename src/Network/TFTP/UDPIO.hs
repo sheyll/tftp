@@ -59,6 +59,7 @@ udpIO host port action =
       Sock.sClose sock
       return res
 
+-- | Default buffer max size for buffered IO
 bufferSize = 4096
 
 -- | Create a socket bound to some address. One of hostname or port MUST be specified.
@@ -73,6 +74,8 @@ bindUDPSocket hostname port = do
   logInfo (printf "Bound socket at address %s" (show boundAddr))
   return (boundAddr, sock)
 
+-- | Create a reader function the resepcts the timeout and reads buffer data
+-- into a lazy bytestring.
 makeReader ::  Sock.Socket -> Ptr Word8 -> Reader
 makeReader sock buffer maybeTimeoutSecs = do
   let timeoutMicros = maybe (-1) (*1000000) maybeTimeoutSecs
@@ -81,7 +84,7 @@ makeReader sock buffer maybeTimeoutSecs = do
     Just (bytesRead, from) -> do
       logInfo ("Read " ++ show bytesRead ++ " bytes from " ++ show from)
       res <- peekArray bytesRead buffer
-      return (Just (from, bpack res))
+      return (Just (from, pack res))
 
     Nothing -> do
       logWarn "Receive timeout!"
@@ -90,7 +93,7 @@ makeReader sock buffer maybeTimeoutSecs = do
 makeWriter :: Sock.Socket -> Ptr Word8 -> Writer
 makeWriter sock buffer destAddr toSend =
   -- run the write loop and catch exceptions
-  catchIOError (writeLoop $ bunpack toSend) handleIOError
+  catchIOError (writeLoop $ unpack toSend) handleIOError
     where
       writeLoop []     = return True
       writeLoop toSend = do
@@ -103,10 +106,10 @@ makeWriter sock buffer destAddr toSend =
         writeLoop rest
 
       handleIOError e = do
-        logWarn $ printf "Caught IO Exception: \'%s\' with message %s at %s."
+        logWarn $ printf "Caught IO Exception: \'%s\' handle: \'%s\' at: \'%s\'."
           (show $ ioeGetErrorType e)
-          (show $ ioeGetErrorString e)
-          (show $ ioeGetLocation e)
+          (show $ ioeGetHandle e)
+          (ioeGetLocation e)
         return False
 
 logInfo  = debugM "TFTP.UDPIO"

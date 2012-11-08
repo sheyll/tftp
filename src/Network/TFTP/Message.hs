@@ -148,7 +148,7 @@ nullTerminated = NString
 data DataChunk = DC { unDC :: ByteString }
 
 instance Binary DataChunk where
-    put (DC bs) = mapM_ put (bunpack bs)
+    put (DC bs) = mapM_ put (unpack bs)
     get = DC <$> getRemainingLazyByteString
 
 instance Show NString where
@@ -158,4 +158,4 @@ instance Binary NString where
     put (NString str) = forM_ str put >> put ('\NUL':: Char)
     get = pure bsToNString <*> getLazyByteStringNul
         where
-          bsToNString = NString . ((toEnum . fromIntegral) <$>) . bunpack
+          bsToNString = NString . ((toEnum . fromIntegral) <$>) . unpack

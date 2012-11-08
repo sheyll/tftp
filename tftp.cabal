@@ -11,7 +11,7 @@ maintainer:        sven.heyll@gmail.com
 homepage:          http://github.com/sheyll/tftp
 
 
-extra-source-files: src/*.hs Makefile README.md
+extra-source-files: src/*.hs Makefile README.md tftp.cabal
 
 --source-repository head
 --   type:     git
@@ -22,6 +22,7 @@ library
                   , Network.TFTP.UDPIO
                   , Network.TFTP.Protocol
                   , Network.TFTP.Types
+                  , Network.TFTP.Server
    hs-source-dirs: src
    build-depends:
       base >= 4 && <= 5,
@@ -31,6 +32,7 @@ library
       mtl,
       transformers,
       hslogger,
+      directory,
       network >= 2.3 && < 2.4
    ghc-options: -threaded
    extensions: CPP

@@ -1,8 +1,8 @@
--- | Common Types used internally
+-- | Common types used internally. Re-exports the 'ByteString' type to use as well as some monad transformer stuff, exceptions, logging, 'Data.Word' and printf.
 module
     Network.TFTP.Types ( ByteString(..)
-                       , bpack
-                       , bunpack
+                       , B.pack
+                       , B.unpack
                        , bdrop
                        , btake
                        , blength
@@ -45,12 +45,16 @@ import Data.Word( Word8
 
 import Text.Printf(printf)
 
+-- | Alias for the Lazy ByteString that is used internally
 type ByteString = B.ByteString
 
-bpack = B.pack
-bunpack = B.unpack
+-- | Candy for ByteString.pack to not interfere with Prelude(drop)
 bdrop = B.drop
+
+-- | Candy for ByteString.take
 btake = B.take
+
+-- | Candy for ByteString.length
 blength = B.length
 
 -- | Type class for monads that can send/receive messages

@@ -53,7 +53,7 @@ client toServer serverV fromServerV = do
   Just (_, fromServer) <- receiveFrom Nothing
   liftIO $ putMVar fromServerV fromServer
 
-toBS = bpack . (map (fromIntegral . fromEnum))
+toBS = pack . (map (fromIntegral . fromEnum))
 
 init_logging = do
   updateGlobalLogger rootLoggerName $ setLevel DEBUG

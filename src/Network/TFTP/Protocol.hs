@@ -7,12 +7,6 @@ import           Network.TFTP.Types
 import qualified Network.TFTP.UDPIO as UDP
 import qualified Network.TFTP.Message as M
 
-import           System.Log.Logger
-import           Data.Word
-import           Text.Printf
-
-import           Control.Monad.Trans.Maybe
-
 -- | XFer monad parameterised over a (MessageIO) monad.
 type XFerT m address a = StateT (XFerState address) m a
 
@@ -107,20 +101,29 @@ continueAfterACK success retry fail = do
     -- this indicates a timeout
     Nothing -> retry
 
+-- | The default number of re-transmits during 'writeData'
 maxRetries :: Int
 maxRetries = 30
 
+-- | The default time 'continueAfterACK' waits for an ACK.
 ackTimeOut = Just 3
 
+-- | Internal state record for a transfer
 data XFerState address = XFerState { xsBlockIndex  :: Word16
-                                   , xsFrom        :: Maybe address}
+                                     -- ^ The block index of an ongoing transfer
+                                   , xsFrom        :: Maybe address
+                                     -- ^ Origin of the last message received
+                                  }
 
+-- | Reset the current block index for an ongoing transfer to 0
 resetBlockIndex :: Monad m => XFerT m address ()
 resetBlockIndex = modify (\st -> st {xsBlockIndex = 0})
 
+-- | Read the current block index for an ongoing transfer
 getBlockIndex :: Monad m => XFerT m address Word16
 getBlockIndex = get >>= return . xsBlockIndex
 
+-- | Increment the current block index for an ongoing transfer
 incBlockIndex :: Monad m => XFerT m address Word16
 incBlockIndex = do
    st <- get
@@ -129,9 +132,11 @@ incBlockIndex = do
    modify (\ st -> st { xsBlockIndex = i' })
    return i'
 
+-- | Return the origin('Address') of the message last received, or 'Nothing'
 getLastPeer :: Monad m => XFerT m address (Maybe address)
 getLastPeer = get >>= return . xsFrom
 
+-- | Overwrite the origin('Address') of the message last received
 setLastPeer :: (MessageIO m address) => Maybe address -> XFerT m address ()
 setLastPeer addr = do
   lp <- getLastPeer
@@ -139,17 +144,20 @@ setLastPeer addr = do
                      printInfo $ printf "Replacing last peer with (%s)" (show addr)
                      modify $ \st -> st { xsFrom = addr }
 
+-- | Send a 'M.DATA' packet to the origin('Address') of the message last received with the current block index
 replyData :: (MessageIO m address) => ByteString -> XFerT m address ()
 replyData chunk = do
   idx <- getBlockIndex
   reply (M.DATA idx chunk)
 
+-- | Send any 'M.Message' to the address to where the last message received from
 reply :: (MessageIO m address) => M.Message -> XFerT m address ()
 reply msg = do
   lp <- getLastPeer
   Just dest <- getLastPeer
   send dest msg
 
+-- | Send any 'M.Message' to an 'Address'
 send :: (MessageIO m address) => address -> M.Message -> XFerT m address ()
 send dest msg = do
   let msg' = M.encode msg
@@ -170,15 +178,19 @@ receive timeout = do
       printWarn "Receive timeout"
       return Nothing
 
+-- | Log debug message
 printInfo :: (MessageIO m address) => String -> XFerT m address ()
 printInfo = logWith debugM
 
+-- | Log warning message
 printWarn :: (MessageIO m address) => String -> XFerT m address ()
 printWarn = logWith warningM
 
+-- | Log error message
 printErr :: (MessageIO m address) => String -> XFerT m address ()
 printErr = logWith errorM
 
+-- | Log message with custom priority
 logWith :: (MessageIO m address) =>
            (String -> String -> IO ()) -> String -> XFerT m address ()
 logWith f m = do

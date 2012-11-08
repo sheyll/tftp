@@ -67,7 +67,7 @@ testOfferSingleFileNetASCII = do
   assertEqual "testOfferSingleFileOneBlock" False res
 
 testOfferSingleFileOneBlock = do
-  let testChunk = bpack (replicate 255 (65 + 11))
+  let testChunk = pack (replicate 255 (65 + 11))
       peer = 123
       fname = "firmware.bin"
   mock $ ExpectReceive peer (M.RRQ "firmware.bin" M.Octet)
@@ -77,7 +77,7 @@ testOfferSingleFileOneBlock = do
   assertEqual "testOfferSingleFileOneBlock" True res
 
 testWriteDataTimeout = do
-  let testChunk = bpack (replicate 255 (65 + 11))
+  let testChunk = pack (replicate 255 (65 + 11))
       peer = 123
   sequence $ replicate (maxRetries + 1) $ do
     mock $ ExpectSend peer $ M.DATA 0 testChunk
@@ -89,7 +89,7 @@ testWriteDataTimeout = do
   assertEqual "testWriteDataTimeout" False res
 
 testWriteData_manyblocks lastChunkSize = do
-  let blob      = bpack $ concat ((replicate (blocks - 1) chunk) ++ [lastChunk])
+  let blob      = pack $ concat ((replicate (blocks - 1) chunk) ++ [lastChunk])
       chunk     = replicate 512 42
       lastChunk = replicate lastChunkSize 43
       blocks    = 100
@@ -97,12 +97,12 @@ testWriteData_manyblocks lastChunkSize = do
       lastIdx   = fromIntegral $ blocks - 1
   -- generate
   sequence $
-    [do mock $ ExpectSend        peer (M.DATA index (bpack chunk))
+    [do mock $ ExpectSend        peer (M.DATA index (pack chunk))
         mock $ ExpectReceive peer (M.ACK index)
     | index <- fromIntegral <$> [0 .. (blocks - 2)]]
 
   -- The transfer is closed by sending an empty data message
-  mock $ ExpectSend    peer (M.DATA lastIdx (bpack lastChunk))
+  mock $ ExpectSend    peer (M.DATA lastIdx (pack lastChunk))
   mock $ ExpectReceive peer (M.ACK lastIdx)
 
   setLastPeer $ Just peer
@@ -111,7 +111,7 @@ testWriteData_manyblocks lastChunkSize = do
   assertEqual "testWriteData_manyblocks" True res
 
 testWriteData_invalid_ack = do
-  let blob = bpack (replicate 25 (65 + 11))
+  let blob = pack (replicate 25 (65 + 11))
       peer = 123
   sequence $ replicate (maxRetries + 1) $ do
     mock $ ExpectSend peer (M.DATA 0 blob)
@@ -123,7 +123,7 @@ testWriteData_invalid_ack = do
   assertEqual "testWriteData_invalid_ack" False res
 
 testWriteData_oneblock = do
-  let testChunk = bpack (replicate 255 (65 + 11))
+  let testChunk = pack (replicate 255 (65 + 11))
       peer = 123
   mock $ ExpectSend peer $ M.DATA 0 testChunk
   mock $ ExpectReceive peer (M.ACK 0)
@@ -191,7 +191,7 @@ testReceiveTimout = do
   verify
 
 testReplyData = do
-    let chunk = bpack (replicate 512 42)
+    let chunk = pack (replicate 512 42)
         from  = 123
         msg   = M.DATA 0 chunk
     setLastPeer (Just from)
@@ -200,7 +200,7 @@ testReplyData = do
     verify
 
 testSendData = do
-    let chunk = bpack (replicate 255 (65 + 10))
+    let chunk = pack (replicate 255 (65 + 10))
         dest = 888
         msg = M.Error M.FileNotFound
     mock $ ExpectSend dest msg
