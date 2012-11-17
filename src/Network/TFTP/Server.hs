@@ -9,7 +9,7 @@ import Network.TFTP.Types
 import Network.TFTP.UDPIO
 import System.Directory(doesFileExist)
 
--- | Create a server that answers a single read request from a single client for
+-- | Create a simple server that answers a single read request from a single client for
 -- a file, and return 'Nothing' when the transfer was successfully completed,
 -- or 'Just <error message>'
 singleBinary :: Maybe Int

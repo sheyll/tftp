@@ -1,8 +1,13 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 -- | Buffered UDP IO utility module.
 module Network.TFTP.UDPIO ( UDPIO(..)
                           , Address
                           , udpIO) where
 
+import           Control.Exception
 import           Foreign.Marshal(mallocArray, peekArray, pokeArray, free)
 import           Foreign.Ptr(Ptr(..))
 import qualified Network.Socket as Sock
@@ -93,7 +98,7 @@ makeReader sock buffer maybeTimeoutSecs = do
 makeWriter :: Sock.Socket -> Ptr Word8 -> Writer
 makeWriter sock buffer destAddr toSend =
   -- run the write loop and catch exceptions
-  catchIOError (writeLoop $ unpack toSend) handleIOError
+  catch (writeLoop $ unpack toSend) handleIOError
     where
       writeLoop []     = return True
       writeLoop toSend = do
