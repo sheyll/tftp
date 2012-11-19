@@ -1,7 +1,7 @@
 -- | High-level API for building simple TFTP Servers, currently restricted to answering read requests.
 module Network.TFTP.Server(singleBinary) where
 
-import Prelude hiding (readFile)
+import Prelude hiding (readFile, catch)
 
 import Control.Exception(Exception, catch, IOException)
 import Network.TFTP.Protocol

@@ -6,13 +6,13 @@
 module Network.TFTP.UDPIO ( UDPIO(..)
                           , Address
                           , udpIO) where
-
 import           Control.Exception
 import           Foreign.Marshal(mallocArray, peekArray, pokeArray, free)
 import           Foreign.Ptr(Ptr(..))
 import qualified Network.Socket as Sock
 import           Network.TFTP.Types
-import           System.IO.Error
+import           Prelude hiding (catch)
+import           System.IO.Error(ioeGetErrorType, ioeGetHandle, ioeGetLocation)
 import           System.Timeout(timeout)
 
 -- | Network address of a UDP sender/receiver

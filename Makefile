@@ -1,6 +1,5 @@
-.PHONY=test build clean
+.PHONY=test build clean install doc
 default_goal: test
-
 
 test:
 	cabal configure --enable-tests --enable-library-coverage
@@ -10,8 +9,13 @@ test:
 build: clean
 	cabal configure
 	cabal build --ghc-options=-O2
-	cabal haddock	
+
+doc:
+	cabal haddock
 
 clean:
 	cabal clean
 	-rm -rf dist
+
+install: build
+	cabal install

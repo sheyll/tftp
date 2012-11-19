@@ -22,7 +22,7 @@ main = do
   forkIO (udpIO Nothing (Just "1234") (server toClient serverV fromClientV))
 
   fromServerV <- newEmptyMVar
-  forkIO (udpIO (Just "localhost") Nothing (client toServer serverV fromServerV))
+  forkIO (udpIO (Just "127.0.0.1") Nothing (client toServer serverV fromServerV))
 
   fromServer <- takeMVar fromServerV
   fromClient <- takeMVar fromClientV
@@ -32,7 +32,7 @@ main = do
 
   testSendToFails
 
-testSendToFails = udpIO (Just "localhost") Nothing $ do
+testSendToFails = udpIO (Just "127.0.0.1") Nothing $ do
   res <- sendTo (SockAddrInet 123 0xffffffff) (toBS "hello client")
   assertEqual "testSendToFails" False res
 
